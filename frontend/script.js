@@ -71,15 +71,13 @@ function clearMapLayers() {
   state.markers = [];
 
   if (state.routeLine) {
-    state.routeLine.remove();
+    state.map.removeControl(state.routeLine);
     state.routeLine = null;
   }
 }
 
 function updateMap(selectedHospital = null) {
-  if (!state.map || !window.L) {
-    return;
-  }
+  if (!state.map || !window.L) return;
 
   clearMapLayers();
 
@@ -94,15 +92,24 @@ function updateMap(selectedHospital = null) {
       .bindPopup(selectedHospital.name);
     state.markers.push(hospitalMarker);
 
-    state.routeLine = L.polyline(
-      [
-        [state.patientLat, state.patientLon],
-        [selectedHospital.lat, selectedHospital.lon],
+    state.routeLine = L.Routing.control({
+      waypoints: [
+        L.latLng(state.patientLat, state.patientLon),
+        L.latLng(selectedHospital.lat, selectedHospital.lon)
       ],
-      { color: "#f97316", weight: 5, opacity: 0.85 }
-    ).addTo(state.map);
+      routeWhileDragging: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+      show: false,
+      lineOptions: {
+        styles: [{ color: "#f97316", opacity: 0.9, weight: 5 }]
+      },
+      createMarker: function(i, wp) {
+        return L.marker(wp.latLng);
+      }
+    }).addTo(state.map);
 
-    state.map.fitBounds(state.routeLine.getBounds(), { padding: [40, 40] });
     return;
   }
 
@@ -118,15 +125,16 @@ function renderReasoning(lines) {
   });
 }
 
+// ⭐ UPDATED FUNCTION (TOP 5 HOSPITALS)
 function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
-  (hospitals || []).forEach((hospital) => {
+  (hospitals || []).slice(0, 5).forEach((hospital, index) => {
     const card = document.createElement("article");
     card.className = "candidate-card";
     card.innerHTML = `
       <div class="candidate-top">
-        <strong>${hospital.name}</strong>
+        <strong>#${index + 1} ${hospital.name}</strong>
         <span>${hospital.eta_minutes} min</span>
       </div>
       <p>${titleize(hospital.departments.join(", "))}</p>
@@ -152,8 +160,9 @@ function updateSummary(data) {
   renderReasoning([
     ...triage.explanation,
     ...data.routing_reasoning,
-    data.sms.error ? `SMS note: ${data.sms.error}` : `SMS body prepared for ${data.sms.to_number || "demo mode"}.`,
+    data.sms.error ? `SMS note: ${data.sms.error}` : `SMS body prepared`,
   ]);
+
   renderHospitals(data.candidate_hospitals);
   updateMap(hospital);
 }
@@ -180,10 +189,6 @@ document.getElementById("triageForm").addEventListener("submit", async (event) =
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}`);
-    }
-
     const data = await response.json();
     updateSummary(data);
   } catch (error) {
@@ -197,4 +202,3 @@ document.getElementById("triageForm").addEventListener("submit", async (event) =
 checkHealth();
 initLocation();
 initMap();
-
