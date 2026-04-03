@@ -1,13 +1,1 @@
-# Python
-venv/
-__pycache__/
-*.pyc
-
-# Env files (NEVER push secrets)
 .env
-
-# OS junk
-.DS_Store
-
-# Logs
-*.log

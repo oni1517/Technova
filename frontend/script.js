@@ -241,11 +241,17 @@ async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNum
   button.textContent = busyText;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildPayload(includeVoiceNumber)),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -254,7 +260,11 @@ async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNum
 
     updateSummary(data);
   } catch (error) {
-    renderReasoning([error.message || "Request failed"]);
+    if (error.name === "AbortError") {
+      renderReasoning(["Request timed out. The server took too long to respond, so the UI was unlocked."]);
+    } else {
+      renderReasoning([error.message || "Request failed"]);
+    }
   } finally {
     submitButton.disabled = false;
     callButton.disabled = false;
