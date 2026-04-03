@@ -9,15 +9,15 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
 from backend.db import Database
-from backend.models import Coordinate, PatientInput, RouteMap, TriageResponse
+from backend.models import Coordinate, PatientInput, RouteMap, TriageResponse, VoiceCallInput
 from backend.routing import select_best_hospital
 from backend.triage import classify_patient
-from backend.utils import send_sms_alert
+from backend.utils import mask_phone_number, queue_bolna_vobiz_call, send_sms_alert
 
 logging.basicConfig(level=logging.INFO)
 
-settings = get_settings()
-database = Database(settings.database_url)
+startup_settings = get_settings()
+database = Database(startup_settings.database_url)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
     await database.close()
 
 
-app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+app = FastAPI(title=startup_settings.app_name, debug=startup_settings.debug, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,17 +50,28 @@ async def home() -> FileResponse:
 
 @app.get("/api/health")
 async def healthcheck() -> dict[str, str]:
+    runtime_settings = get_settings()
     return {
         "status": "ok",
         "database_mode": "fallback" if database.fallback_mode else "postgres",
-        "anthropic_model": settings.anthropic_model,
+        "anthropic_model": runtime_settings.anthropic_model,
+        "voice_provider": f"bolna_{runtime_settings.bolna_provider}",
+        "voice_ready": "true" if all([runtime_settings.bolna_api_key, runtime_settings.bolna_agent_id]) else "false",
+        "voice_default_recipient_configured": (
+            "true" if bool(runtime_settings.bolna_default_recipient_phone_number) else "false"
+        ),
+        "voice_default_recipient_masked": mask_phone_number(runtime_settings.bolna_default_recipient_phone_number) or "",
     }
 
 
-@app.post("/api/triage", response_model=TriageResponse)
-async def triage_patient(payload: PatientInput) -> TriageResponse:
+async def build_triage_response(
+    payload: PatientInput,
+    trigger_voice_call: bool = False,
+    recipient_phone_number: str | None = None,
+) -> TriageResponse:
     try:
-        triage = await classify_patient(payload, settings)
+        runtime_settings = get_settings()
+        triage = await classify_patient(payload, runtime_settings)
         routing_preface: list[str] = []
 
         filtered_hospitals = await database.fetch_hospitals(
@@ -78,14 +89,25 @@ async def triage_patient(payload: PatientInput) -> TriageResponse:
             patient=payload,
             triage=triage,
             hospitals=filtered_hospitals,
-            settings=settings,
+            settings=runtime_settings,
         )
 
         sms_result = await send_sms_alert(
             patient=payload,
             triage=triage,
             hospital=selected_hospital,
-            settings=settings,
+            settings=runtime_settings,
+        )
+        voice_call_result = (
+            await queue_bolna_vobiz_call(
+                patient=payload,
+                triage=triage,
+                hospital=selected_hospital,
+                settings=runtime_settings,
+                recipient_phone_number=recipient_phone_number,
+            )
+            if trigger_voice_call
+            else None
         )
 
         map_data = RouteMap(
@@ -112,9 +134,24 @@ async def triage_patient(payload: PatientInput) -> TriageResponse:
             candidate_hospitals=candidate_hospitals,
             routing_reasoning=routing_preface + routing_reasoning,
             sms=sms_result,
+            voice_call=voice_call_result,
             map_data=map_data,
         )
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to process triage request: {exc}") from exc
+
+
+@app.post("/api/triage", response_model=TriageResponse)
+async def triage_patient(payload: PatientInput) -> TriageResponse:
+    return await build_triage_response(payload)
+
+
+@app.post("/api/voice/test-call", response_model=TriageResponse)
+async def triage_and_queue_voice_call(payload: VoiceCallInput) -> TriageResponse:
+    return await build_triage_response(
+        payload=payload,
+        trigger_voice_call=True,
+        recipient_phone_number=payload.recipient_phone_number,
+    )

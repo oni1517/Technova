@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +24,13 @@ class Settings(BaseSettings):
     twilio_from_number: str | None = None
     twilio_to_number: str | None = None
 
+    bolna_api_key: str | None = None
+    bolna_api_url: str = "https://api.bolna.ai/call"
+    bolna_agent_id: str | None = None
+    bolna_from_phone_number: str | None = None
+    bolna_default_recipient_phone_number: str | None = None
+    bolna_provider: str = "vobiz"
+
     default_patient_lat: float = 18.5204
     default_patient_lon: float = 73.8567
 
@@ -34,7 +39,5 @@ class Settings(BaseSettings):
     department_weight: float = 0.10
 
 
-@lru_cache
 def get_settings() -> Settings:
     return Settings()
-

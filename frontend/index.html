@@ -56,7 +56,15 @@
               Injury / Complaint
               <textarea id="injury" rows="4" required>Road traffic accident with chest trauma and heavy bleeding</textarea>
             </label>
-            <button type="submit" id="submitButton">Run Triage</button>
+            <label>
+              Voice Test Number (E.164)
+              <input type="tel" id="voiceNumber" placeholder="+911234567890" />
+            </label>
+            <p id="voiceHelp" class="field-help">Checking voice-call setup...</p>
+            <div class="button-row">
+              <button type="submit" id="submitButton">Run Triage</button>
+              <button type="button" id="callButton" class="secondary-button">Run Triage + Voice Call</button>
+            </div>
           </form>
         </div>
 
@@ -81,6 +89,10 @@
             <article class="summary-card">
               <span>SMS</span>
               <strong id="smsValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>Voice Call</span>
+              <strong id="voiceValue">-</strong>
             </article>
           </div>
 
@@ -117,4 +129,3 @@
     <script src="/frontend/script.js"></script>
   </body>
 </html>
-
