@@ -158,6 +158,7 @@ function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
   (hospitals || []).slice(0, 5).forEach((hospital, index) => {
+    const displayScore = Number(hospital.display_score ?? 0);
     const card = document.createElement("article");
     card.className = "candidate-card";
     card.innerHTML = `
@@ -166,7 +167,7 @@ function renderHospitals(hospitals) {
         <span>${hospital.eta_minutes} min</span>
       </div>
       <p>${titleize(hospital.departments.join(", "))}</p>
-      <p>Score ${hospital.score.toFixed(3)} | Beds ${hospital.available_beds} | ICU ${hospital.icu_available ? "Yes" : "No"}</p>
+      <p>Score ${displayScore.toFixed(3)} | Beds ${hospital.available_beds} | ICU ${hospital.icu_available ? "Yes" : "No"}</p>
       <p>${hospital.routing_reason}</p>
     `;
     hospitalList.appendChild(card);

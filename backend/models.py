@@ -53,12 +53,14 @@ class HospitalRecord(BaseModel):
     departments: list[str]
     available_beds: int
     icu_available: bool
+    rating: float = 3.0
 
 
 class HospitalOption(HospitalRecord):
     eta_minutes: int
     distance_km: float
-    score: float
+    raw_score: float
+    display_score: float
     routing_reason: str
 
 
