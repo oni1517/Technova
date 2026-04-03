@@ -57,12 +57,6 @@ body {
   line-height: 0.95;
 }
 
-.subcopy {
-  max-width: 56ch;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.6;
-}
 
 .hero-status {
   display: grid;
