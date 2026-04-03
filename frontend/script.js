@@ -11,12 +11,22 @@ const departmentValue = document.getElementById("departmentValue");
 const hospitalValue = document.getElementById("hospitalValue");
 const etaValue = document.getElementById("etaValue");
 const smsValue = document.getElementById("smsValue");
+const voiceValue = document.getElementById("voiceValue");
 const reasoningList = document.getElementById("reasoningList");
 const hospitalList = document.getElementById("hospitalList");
 const triageSource = document.getElementById("triageSource");
 const submitButton = document.getElementById("submitButton");
+const callButton = document.getElementById("callButton");
 const apiStatus = document.getElementById("apiStatus");
 const locationStatus = document.getElementById("locationStatus");
+const voiceNumberInput = document.getElementById("voiceNumber");
+const voiceHelp = document.getElementById("voiceHelp");
+
+const healthState = {
+  voiceReady: false,
+  voiceDefaultConfigured: false,
+  voiceDefaultMasked: "",
+};
 
 function titleize(text) {
   return text.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -26,9 +36,27 @@ async function checkHealth() {
   try {
     const response = await fetch("/api/health");
     const data = await response.json();
-    apiStatus.textContent = `${data.status.toUpperCase()} / ${data.database_mode}`;
+    healthState.voiceReady = data.voice_ready === "true";
+    healthState.voiceDefaultConfigured = data.voice_default_recipient_configured === "true";
+    healthState.voiceDefaultMasked = data.voice_default_recipient_masked || "";
+
+    apiStatus.textContent = `${data.status.toUpperCase()} / ${data.database_mode} / ${data.voice_provider}`;
+
+    if (!healthState.voiceReady) {
+      voiceHelp.textContent = "Voice call setup is incomplete on the server. Check Bolna API key and agent ID.";
+      callButton.disabled = true;
+      return;
+    }
+
+    if (healthState.voiceDefaultConfigured) {
+      voiceHelp.textContent = `Leave the field empty to use the configured default number ${healthState.voiceDefaultMasked}.`;
+    } else {
+      voiceHelp.textContent = "Enter a verified E.164 number to place a voice call.";
+    }
   } catch (error) {
     apiStatus.textContent = "Offline";
+    voiceHelp.textContent = "API is offline, so voice calling is unavailable.";
+    callButton.disabled = true;
   }
 }
 
@@ -71,15 +99,13 @@ function clearMapLayers() {
   state.markers = [];
 
   if (state.routeLine) {
-    state.routeLine.remove();
+    state.map.removeControl(state.routeLine);
     state.routeLine = null;
   }
 }
 
 function updateMap(selectedHospital = null) {
-  if (!state.map || !window.L) {
-    return;
-  }
+  if (!state.map || !window.L) return;
 
   clearMapLayers();
 
@@ -94,15 +120,24 @@ function updateMap(selectedHospital = null) {
       .bindPopup(selectedHospital.name);
     state.markers.push(hospitalMarker);
 
-    state.routeLine = L.polyline(
-      [
-        [state.patientLat, state.patientLon],
-        [selectedHospital.lat, selectedHospital.lon],
+    state.routeLine = L.Routing.control({
+      waypoints: [
+        L.latLng(state.patientLat, state.patientLon),
+        L.latLng(selectedHospital.lat, selectedHospital.lon)
       ],
-      { color: "#f97316", weight: 5, opacity: 0.85 }
-    ).addTo(state.map);
+      routeWhileDragging: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+      show: false,
+      lineOptions: {
+        styles: [{ color: "#f97316", opacity: 0.9, weight: 5 }]
+      },
+      createMarker: function(i, wp) {
+        return L.marker(wp.latLng);
+      }
+    }).addTo(state.map);
 
-    state.map.fitBounds(state.routeLine.getBounds(), { padding: [40, 40] });
     return;
   }
 
@@ -118,15 +153,16 @@ function renderReasoning(lines) {
   });
 }
 
+// ⭐ UPDATED FUNCTION (TOP 5 HOSPITALS)
 function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
-  (hospitals || []).forEach((hospital) => {
+  (hospitals || []).slice(0, 5).forEach((hospital, index) => {
     const card = document.createElement("article");
     card.className = "candidate-card";
     card.innerHTML = `
       <div class="candidate-top">
-        <strong>${hospital.name}</strong>
+        <strong>#${index + 1} ${hospital.name}</strong>
         <span>${hospital.eta_minutes} min</span>
       </div>
       <p>${titleize(hospital.departments.join(", "))}</p>
@@ -140,6 +176,7 @@ function renderHospitals(hospitals) {
 function updateSummary(data) {
   const triage = data.triage;
   const hospital = data.selected_hospital;
+  const voiceCall = data.voice_call;
 
   severityChip.textContent = triage.severity.toUpperCase();
   severityChip.className = `chip severity-${triage.severity}`;
@@ -147,22 +184,27 @@ function updateSummary(data) {
   hospitalValue.textContent = hospital ? hospital.name : "No match";
   etaValue.textContent = hospital ? `${hospital.eta_minutes} min` : "-";
   smsValue.textContent = data.sms.status.toUpperCase();
+  voiceValue.textContent = voiceCall ? voiceCall.status.toUpperCase() : "NOT RUN";
   triageSource.textContent = `Triage via ${triage.source}`;
 
   renderReasoning([
     ...triage.explanation,
     ...data.routing_reasoning,
-    data.sms.error ? `SMS note: ${data.sms.error}` : `SMS body prepared for ${data.sms.to_number || "demo mode"}.`,
+    data.sms.error ? `SMS note: ${data.sms.error}` : `SMS body prepared`,
+    voiceCall
+      ? (
+        voiceCall.error
+          ? `Voice call note: ${voiceCall.error}`
+          : `Voice call ${voiceCall.status} via ${voiceCall.provider}${voiceCall.execution_id ? ` (${voiceCall.execution_id})` : ""}`
+      )
+      : "Voice call not triggered",
   ]);
+
   renderHospitals(data.candidate_hospitals);
   updateMap(hospital);
 }
 
-document.getElementById("triageForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  submitButton.disabled = true;
-  submitButton.textContent = "Routing...";
-
+function buildPayload(includeVoiceNumber = false) {
   const payload = {
     heart_rate: Number(document.getElementById("heartRate").value),
     systolic_bp: Number(document.getElementById("systolicBp").value),
@@ -173,28 +215,80 @@ document.getElementById("triageForm").addEventListener("submit", async (event) =
     patient_lon: state.patientLon,
   };
 
+  if (includeVoiceNumber) {
+    const voiceNumber = document.getElementById("voiceNumber").value.trim();
+    if (voiceNumber) {
+      payload.recipient_phone_number = voiceNumber;
+    }
+  }
+
+  return payload;
+}
+
+async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNumber = false) {
+  if (
+    endpoint === "/api/voice/test-call" &&
+    !voiceNumberInput.value.trim() &&
+    !healthState.voiceDefaultConfigured
+  ) {
+    renderReasoning(["Voice call not started: no recipient number was entered and no default test number is configured."]);
+    voiceValue.textContent = "SKIPPED";
+    return;
+  }
+
+  submitButton.disabled = true;
+  callButton.disabled = true;
+  button.textContent = busyText;
+
   try {
-    const response = await fetch("/api/triage", {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(buildPayload(includeVoiceNumber)),
+      signal: controller.signal,
     });
-
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}`);
-    }
+    clearTimeout(timeoutId);
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Request failed");
+    }
+
     updateSummary(data);
   } catch (error) {
-    renderReasoning([error.message || "Request failed"]);
+    if (error.name === "AbortError") {
+      renderReasoning(["Request timed out. The server took too long to respond, so the UI was unlocked."]);
+    } else {
+      renderReasoning([error.message || "Request failed"]);
+    }
   } finally {
     submitButton.disabled = false;
+    callButton.disabled = false;
     submitButton.textContent = "Run Triage";
+    callButton.textContent = "Run Triage + Voice Call";
+    button.textContent = idleText;
   }
+}
+
+document.getElementById("triageForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await runWorkflow("/api/triage", submitButton, "Routing...", "Run Triage");
+});
+
+callButton.addEventListener("click", async () => {
+  await runWorkflow(
+    "/api/voice/test-call",
+    callButton,
+    "Routing + Calling...",
+    "Run Triage + Voice Call",
+    true
+  );
 });
 
 checkHealth();
 initLocation();
 initMap();
-

@@ -31,6 +31,10 @@ class PatientInput(BaseModel):
     patient_lon: float = Field(default=73.8567, ge=-180, le=180)
 
 
+class VoiceCallInput(PatientInput):
+    recipient_phone_number: str | None = Field(default=None, min_length=8, max_length=20)
+
+
 class TriageAssessment(BaseModel):
     severity: SeverityLevel
     department: DepartmentName
@@ -66,6 +70,15 @@ class SMSDelivery(BaseModel):
     error: str | None = None
 
 
+class VoiceCallDelivery(BaseModel):
+    status: Literal["queued", "skipped", "failed"]
+    provider: str
+    recipient_phone_number: str | None = None
+    execution_id: str | None = None
+    message: str
+    error: str | None = None
+
+
 class RouteMap(BaseModel):
     patient: Coordinate
     destination: Coordinate | None = None
@@ -79,5 +92,5 @@ class TriageResponse(BaseModel):
     candidate_hospitals: list[HospitalOption] = Field(default_factory=list)
     routing_reasoning: list[str] = Field(default_factory=list)
     sms: SMSDelivery
+    voice_call: VoiceCallDelivery | None = None
     map_data: RouteMap
-

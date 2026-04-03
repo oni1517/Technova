@@ -57,12 +57,6 @@ body {
   line-height: 0.95;
 }
 
-.subcopy {
-  max-width: 56ch;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.6;
-}
 
 .hero-status {
   display: grid;
@@ -109,11 +103,24 @@ body {
   gap: 16px;
 }
 
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 label {
   display: grid;
   gap: 8px;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.field-help {
+  margin: -6px 2px 0;
+  color: var(--accent-soft);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 input,
@@ -147,13 +154,19 @@ button {
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
+.secondary-button {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
+  color: var(--text);
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 button:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 32px rgba(249, 115, 22, 0.35);
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.7;
 }
 
@@ -293,8 +306,11 @@ ul {
     grid-template-columns: 1fr;
   }
 
+  .button-row {
+    grid-template-columns: 1fr;
+  }
+
   #map {
     height: 320px;
   }
 }
-

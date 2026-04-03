@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Golden Route Emergency Triage & Routing System</title>
+    <title>Golden Hour Emergency Triage & Routing System</title>
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -11,17 +11,14 @@
       crossorigin=""
     />
     <link rel="stylesheet" href="/frontend/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    
   </head>
   <body>
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Production-Ready Hackathon Boilerplate</p>
-          <h1>Golden Route Emergency Triage & Routing System</h1>
-          <p class="subcopy">
-            Real-time ambulance triage, hospital matching, ICU override logic,
-            and alerting from a single FastAPI + Leaflet dashboard.
-          </p>
+          <h1>Golden Hour Emergency Triage & Routing System</h1>
         </div>
         <div class="hero-status">
           <div class="status-card">
@@ -59,7 +56,15 @@
               Injury / Complaint
               <textarea id="injury" rows="4" required>Road traffic accident with chest trauma and heavy bleeding</textarea>
             </label>
-            <button type="submit" id="submitButton">Run Triage</button>
+            <label>
+              Voice Test Number (E.164)
+              <input type="tel" id="voiceNumber" placeholder="+911234567890" />
+            </label>
+            <p id="voiceHelp" class="field-help">Checking voice-call setup...</p>
+            <div class="button-row">
+              <button type="submit" id="submitButton">Run Triage</button>
+              <button type="button" id="callButton" class="secondary-button">Run Triage + Voice Call</button>
+            </div>
           </form>
         </div>
 
@@ -84,6 +89,10 @@
             <article class="summary-card">
               <span>SMS</span>
               <strong id="smsValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>Voice Call</span>
+              <strong id="voiceValue">-</strong>
             </article>
           </div>
 
@@ -116,7 +125,7 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
     <script src="/frontend/script.js"></script>
   </body>
 </html>
-

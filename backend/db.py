@@ -90,6 +90,105 @@ def sample_hospitals() -> list[HospitalRecord]:
             available_beds=12,
             icu_available=True,
         ),
+        HospitalRecord(
+            id=10,
+            name="Sassoon General Hospital",
+            lat=18.5288,
+            lon=73.8744,
+            departments=["emergency", "trauma", "general_surgery", "icu"],
+            available_beds=15,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=11,
+            name="Manipal Hospital Kharadi",
+            lat=18.5538,
+            lon=73.9477,
+            departments=["emergency", "cardiology", "pulmonology", "icu"],
+            available_beds=10,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=12,
+            name="Symbiosis University Hospital & Research Centre",
+            lat=18.4605,
+            lon=73.8937,
+            departments=["emergency", "general_surgery", "trauma", "icu"],
+            available_beds=9,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=13,
+            name="AIMS Hospital Aundh",
+            lat=18.5592,
+            lon=73.8073,
+            departments=["emergency", "pulmonology", "general_surgery"],
+            available_beds=6,
+            icu_available=False,
+        ),
+        HospitalRecord(
+            id=14,
+            name="Jupiter Hospital Baner",
+            lat=18.5644,
+            lon=73.7813,
+            departments=["emergency", "cardiology", "neurology", "icu"],
+            available_beds=13,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=15,
+            name="Bharati Hospital Dhankawadi",
+            lat=18.4608,
+            lon=73.8567,
+            departments=["emergency", "general_surgery", "orthopedics", "icu"],
+            available_beds=8,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=16,
+            name="Morya Hospital Chinchwad",
+            lat=18.6281,
+            lon=73.8009,
+            departments=["emergency", "orthopedics", "trauma"],
+            available_beds=7,
+            icu_available=False,
+        ),
+        HospitalRecord(
+            id=17,
+            name="Lokmanya Hospital Nigdi",
+            lat=18.6509,
+            lon=73.7703,
+            departments=["emergency", "trauma", "orthopedics", "icu"],
+            available_beds=9,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=18,
+            name="Pawana Hospital Somatane",
+            lat=18.6956,
+            lon=73.7356,
+            departments=["emergency", "trauma", "general_surgery"],
+            available_beds=5,
+            icu_available=False,
+        ),
+        HospitalRecord(
+            id=19,
+            name="Columbia Asia Hospital Kharadi",
+            lat=18.5516,
+            lon=73.9472,
+            departments=["emergency", "cardiology", "pulmonology", "icu"],
+            available_beds=10,
+            icu_available=True,
+        ),
+        HospitalRecord(
+            id=20,
+            name="Dr. D. Y. Patil Hospital Pimpri",
+            lat=18.6291,
+            lon=73.8180,
+            departments=["emergency", "trauma", "neurology", "icu"],
+            available_beds=14,
+            icu_available=True,
+        ),
     ]
 
 
@@ -155,7 +254,8 @@ class Database:
                     icu_available
                 ) VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (name) DO NOTHING;
-                """,
+                """
+                ,
                 [
                     (
                         hospital.name,
@@ -186,7 +286,8 @@ class Database:
                     WHERE ($1::text IS NULL OR $1 = ANY(departments))
                       AND ($2::boolean = FALSE OR icu_available = TRUE)
                     ORDER BY available_beds DESC, name ASC;
-                    """,
+                    """
+                    ,
                     department,
                     icu_only,
                 )
@@ -207,4 +308,3 @@ class Database:
         if icu_only:
             hospitals = [hospital for hospital in hospitals if hospital.icu_available]
         return hospitals
-
