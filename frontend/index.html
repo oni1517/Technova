@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Golden Route Emergency Triage & Routing System</title>
+    <title>Golden Hour Emergency Triage & Routing System</title>
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -11,13 +11,15 @@
       crossorigin=""
     />
     <link rel="stylesheet" href="/frontend/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    
   </head>
   <body>
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Production-Ready Hackathon Boilerplate</p>
-          <h1>Golden Route Emergency Triage & Routing System</h1>
+          <h1>Golden Hour Emergency Triage & Routing System</h1>
           <p class="subcopy">
             Real-time ambulance triage, hospital matching, ICU override logic,
             and alerting from a single FastAPI + Leaflet dashboard.
@@ -116,6 +118,7 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
     <script src="/frontend/script.js"></script>
   </body>
 </html>
