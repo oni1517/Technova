@@ -666,6 +666,10 @@ textarea {
   gap: 12px;
 }
 
+.button-row.single-action {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .button-row button {
   width: 100%;
   padding: 14px 18px;
@@ -859,6 +863,40 @@ ul {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.dispatch-call-card {
+  margin-top: 12px;
+}
+
+.call-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.call-input-row input {
+  min-width: 0;
+}
+
+.call-action-button {
+  min-width: 120px;
+  padding: 10px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: transform var(--transition), border-color var(--transition), background-color var(--transition), color var(--transition), box-shadow var(--transition), opacity var(--transition);
+  white-space: nowrap;
+}
+
+.call-action-button:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .summary-card {
@@ -1074,6 +1112,14 @@ ul {
   .button-row,
   .candidate-list {
     grid-template-columns: 1fr;
+  }
+
+  .call-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .call-action-button {
+    width: 100%;
   }
 
   .status-pill-clock {

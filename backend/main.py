@@ -11,10 +11,10 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
 from backend.db import Database
-from backend.models import Coordinate, PatientInput, RouteMap, TriageResponse, VoiceCallInput
+from backend.models import Coordinate, PatientInput, RouteMap, TriageResponse, VitalsFrame, VoiceCallInput
 from backend.routing import select_best_hospital
 from backend.scene_classifier import classify_scene
-from backend.triage import classify_patient
+from backend.triage import classify_patient, get_current_vitals
 from backend.utils import mask_phone_number, queue_bolna_vobiz_call, send_sms_alert
 
 logging.basicConfig(level=logging.INFO)
@@ -65,6 +65,11 @@ async def healthcheck() -> dict[str, str]:
         ),
         "voice_default_recipient_masked": mask_phone_number(runtime_settings.bolna_default_recipient_phone_number) or "",
     }
+
+
+@app.get("/api/vitals/{session_id}/{scenario}", response_model=VitalsFrame)
+async def stream_vitals(session_id: str, scenario: str) -> VitalsFrame:
+    return VitalsFrame(**get_current_vitals(session_id, scenario))
 
 
 async def build_triage_response(

@@ -1,206 +1,182 @@
-import logging
+import time
 
-import httpx
-
-from backend.config import Settings
-from backend.models import DepartmentName, PatientInput, TriageAssessment
-
-logger = logging.getLogger(__name__)
+from backend.models import PatientInput, TriageAssessment, TriageResult
 
 
-TRIAGE_TOOL_SCHEMA = {
-    "name": "record_triage",
-    "description": (
-        "Return a conservative emergency triage assessment for ambulance routing. "
-        "Choose the most appropriate receiving department and concise clinical reasoning."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "severity": {
-                "type": "string",
-                "enum": ["critical", "high", "moderate", "low"],
-            },
-            "department": {
-                "type": "string",
-                "enum": [
-                    "emergency",
-                    "trauma",
-                    "cardiology",
-                    "neurology",
-                    "orthopedics",
-                    "pulmonology",
-                    "general_surgery",
-                    "icu",
-                ],
-            },
-            "explanation": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 2,
-                "maxItems": 4,
-            },
-            "patient_summary": {
-                "type": "string",
-            },
-        },
-        "required": ["severity", "department", "explanation", "patient_summary"],
+SCENARIO_DEFINITIONS = {
+    "cardiac_arrest": {
+        "vitals_frames": [
+            {"hr": 52, "bp_sys": 90, "bp_dia": 60, "spo2": 91, "rr": 22},
+            {"hr": 48, "bp_sys": 85, "bp_dia": 55, "spo2": 89, "rr": 24},
+            {"hr": 55, "bp_sys": 92, "bp_dia": 62, "spo2": 90, "rr": 23},
+            {"hr": 44, "bp_sys": 82, "bp_dia": 52, "spo2": 87, "rr": 26},
+        ],
+        "triage_flags": {"icu": True, "ventilator": False, "specialist": "cardio"},
+        "severity": "critical",
+    },
+    "stroke": {
+        "vitals_frames": [
+            {"hr": 88, "bp_sys": 162, "bp_dia": 100, "spo2": 94, "rr": 18},
+            {"hr": 92, "bp_sys": 168, "bp_dia": 104, "spo2": 93, "rr": 19},
+            {"hr": 86, "bp_sys": 158, "bp_dia": 98, "spo2": 94, "rr": 18},
+            {"hr": 90, "bp_sys": 174, "bp_dia": 108, "spo2": 92, "rr": 20},
+        ],
+        "triage_flags": {"icu": True, "ventilator": False, "specialist": "neuro"},
+        "severity": "high",
+    },
+    "head_trauma": {
+        "vitals_frames": [
+            {"hr": 98, "bp_sys": 148, "bp_dia": 92, "spo2": 93, "rr": 20},
+            {"hr": 105, "bp_sys": 152, "bp_dia": 97, "spo2": 91, "rr": 22},
+            {"hr": 112, "bp_sys": 155, "bp_dia": 100, "spo2": 90, "rr": 25},
+            {"hr": 118, "bp_sys": 158, "bp_dia": 104, "spo2": 88, "rr": 27},
+        ],
+        "triage_flags": {"icu": True, "ventilator": True, "specialist": "neuro"},
+        "severity": "critical",
+    },
+    "respiratory_distress": {
+        "vitals_frames": [
+            {"hr": 122, "bp_sys": 112, "bp_dia": 70, "spo2": 82, "rr": 32},
+            {"hr": 128, "bp_sys": 108, "bp_dia": 68, "spo2": 78, "rr": 35},
+            {"hr": 132, "bp_sys": 106, "bp_dia": 65, "spo2": 76, "rr": 37},
+            {"hr": 126, "bp_sys": 110, "bp_dia": 70, "spo2": 80, "rr": 33},
+        ],
+        "triage_flags": {"icu": True, "ventilator": True, "specialist": "pulmo"},
+        "severity": "critical",
     },
 }
 
+_frame_counters: dict[str, int] = {}
 
-def _pick_department(injury: str, oxygen_saturation: int) -> DepartmentName:
-    injury_text = injury.lower()
+_SPECIALIST_TO_DEPARTMENT = {
+    "cardio": "cardiology",
+    "neuro": "neurology",
+    "pulmo": "pulmonology",
+    "trauma": "trauma",
+}
 
-    if any(word in injury_text for word in ["chest pain", "cardiac", "heart", "palpitation"]):
-        return "cardiology"
-    if any(word in injury_text for word in ["stroke", "seizure", "head", "brain", "unconscious"]):
-        return "neurology"
-    if any(word in injury_text for word in ["fracture", "bone", "spine", "limb"]):
-        return "orthopedics"
-    if any(word in injury_text for word in ["accident", "collision", "bleeding", "wound", "burn", "trauma"]):
-        return "trauma"
-    if oxygen_saturation <= 92 or any(word in injury_text for word in ["breath", "asthma", "lung", "respiratory"]):
-        return "pulmonology"
-    if any(word in injury_text for word in ["abdomen", "stomach", "appendix", "surgery"]):
-        return "general_surgery"
+
+def compute_severity(vitals: dict, chips: list[str]) -> dict:
+    hr = vitals.get("hr", 80)
+    spo2 = vitals.get("spo2", 98)
+    rr = vitals.get("rr", 16)
+    bp = vitals.get("bp_sys", 120)
+
+    severity = "low"
+    icu = False
+    ventilator = False
+    specialist = None
+
+    if spo2 < 85:
+        severity = "critical"
+        icu = True
+        ventilator = True
+    elif spo2 < 92:
+        severity = "high"
+        icu = True
+
+    if hr < 50 or hr > 130:
+        severity = "critical"
+        icu = True
+    elif hr < 60 or hr > 110:
+        if severity == "low":
+            severity = "moderate"
+
+    if rr > 30 or rr < 8:
+        severity = "critical"
+        icu = True
+    elif rr > 24:
+        if severity in ("low", "moderate"):
+            severity = "high"
+
+    if bp < 85:
+        severity = "critical"
+        icu = True
+    elif bp > 160:
+        if severity == "low":
+            severity = "high"
+
+    chip_map = {
+        "Chest Pain": {"severity": "critical", "icu": True, "specialist": "cardio"},
+        "Stroke Signs": {"severity": "high", "icu": True, "specialist": "neuro"},
+        "Head Injury": {"severity": "critical", "icu": True, "specialist": "neuro"},
+        "Respiratory Distress": {
+            "severity": "critical",
+            "icu": True,
+            "ventilator": True,
+            "specialist": "pulmo",
+        },
+        "Unconscious": {"severity": "critical", "icu": True},
+        "Severe Bleeding": {"severity": "high", "specialist": "trauma"},
+    }
+    severity_order = ["low", "moderate", "high", "critical"]
+    for chip in chips:
+        if chip in chip_map:
+            overrides = chip_map[chip]
+            if severity_order.index(overrides.get("severity", severity)) > severity_order.index(severity):
+                severity = overrides["severity"]
+            if overrides.get("icu"):
+                icu = True
+            if overrides.get("ventilator"):
+                ventilator = True
+            if overrides.get("specialist"):
+                specialist = overrides["specialist"]
+
+    return {
+        "severity": severity,
+        "icu_required": icu,
+        "ventilator_required": ventilator,
+        "specialist": specialist,
+    }
+
+
+def get_current_vitals(session_id: str, scenario: str) -> dict:
+    frames = SCENARIO_DEFINITIONS.get(scenario, SCENARIO_DEFINITIONS["cardiac_arrest"])["vitals_frames"]
+    idx = _frame_counters.get(session_id, 0)
+    vitals = frames[idx % len(frames)]
+    _frame_counters[session_id] = idx + 1
+    bp_str = f"{vitals['bp_sys']}/{vitals['bp_dia']}"
+    return {**vitals, "bp": bp_str, "timestamp": time.time()}
+
+
+def _department_from_triage(result: TriageResult) -> str:
+    if result.specialist:
+        return _SPECIALIST_TO_DEPARTMENT.get(result.specialist, "emergency")
+    if result.icu_required:
+        return "icu"
     return "emergency"
 
 
-def fallback_triage(patient: PatientInput) -> TriageAssessment:
-    injury_text = patient.injury.lower()
-    department = _pick_department(patient.injury, patient.oxygen_saturation)
+def _build_explanation(result: TriageResult, vitals: dict, chips: list[str]) -> list[str]:
+    lines = [
+        (
+            f"Vitals trend shows HR {vitals['hr']} bpm, BP {vitals['bp_sys']}/{vitals['bp_dia']} mmHg, "
+            f"SpO2 {vitals['spo2']}%, RR {vitals['rr']}/min."
+        ),
+        f"Rules-based severity engine classified this patient as {result.severity.upper()}.",
+    ]
+    if chips:
+        lines.append(f"Triage modifiers applied from scene cues: {', '.join(chips)}.")
+    if result.ventilator_required:
+        lines.append("Respiratory compromise indicates ventilator-capable critical care support.")
+    elif result.icu_required:
+        lines.append("Escalation requires ICU-capable receiving support.")
+    return lines[:4]
 
-    critical_keywords = {
-        "unconscious",
-        "stroke",
-        "cardiac arrest",
-        "severe bleeding",
-        "major burn",
-        "breathing",
-        "collapse",
-        "seizure",
-        "gunshot",
-        "stabbing",
-    }
-    high_keywords = {
-        "fracture",
-        "head injury",
-        "chest pain",
-        "shortness of breath",
-        "crush injury",
-        "road accident",
-    }
 
-    if (
-        patient.oxygen_saturation <= 88
-        or patient.systolic_bp < 90
-        or patient.heart_rate >= 140
-        or any(keyword in injury_text for keyword in critical_keywords)
-    ):
-        severity = "critical"
-        explanation = [
-            "Vitals indicate immediate hemodynamic or respiratory instability.",
-            "Routing should heavily prioritize faster arrival and the closest specialization fit.",
-        ]
-    elif (
-        patient.oxygen_saturation <= 92
-        or patient.systolic_bp < 100
-        or patient.heart_rate >= 120
-        or any(keyword in injury_text for keyword in high_keywords)
-    ):
-        severity = "high"
-        explanation = [
-            "Patient shows significant physiological stress and needs urgent specialist review.",
-            "Routing should favor faster transfer while keeping department fit strong.",
-        ]
-    elif patient.oxygen_saturation <= 95 or patient.heart_rate >= 105:
-        severity = "moderate"
-        explanation = [
-            "Patient is symptomatic but not currently in immediate collapse.",
-            "Routing can lean on rating while still considering travel time and specialization fit.",
-        ]
-    else:
-        severity = "low"
-        explanation = [
-            "Vitals are comparatively stable at intake.",
-            "Standard emergency routing is acceptable unless symptoms worsen.",
-        ]
-
-    patient_summary = (
-        f"HR {patient.heart_rate} bpm, BP {patient.systolic_bp}/{patient.diastolic_bp} mmHg, "
-        f"SpO2 {patient.oxygen_saturation}%, injury: {patient.injury.strip()}."
-    )
+async def classify_patient(patient: PatientInput, _settings) -> TriageAssessment:
+    vitals = patient.as_vitals_dict()
+    computed = TriageResult(**compute_severity(vitals, patient.chips))
+    department = _department_from_triage(computed)
+    bp = f"{vitals['bp_sys']}/{vitals['bp_dia']}"
 
     return TriageAssessment(
-        severity=severity,
+        severity=computed.severity,
         department=department,
-        explanation=explanation,
-        patient_summary=patient_summary,
+        explanation=_build_explanation(computed, vitals, patient.chips),
+        patient_summary=(
+            f"HR {vitals['hr']} bpm, BP {bp} mmHg, SpO2 {vitals['spo2']}%, "
+            f"RR {vitals['rr']}/min, injury: {patient.injury.strip()}."
+        ),
         source="fallback",
     )
-
-
-async def classify_patient(patient: PatientInput, settings: Settings) -> TriageAssessment:
-    if not settings.anthropic_api_key:
-        return fallback_triage(patient)
-
-    prompt = (
-        "Classify this ambulance intake for hospital routing in Pune.\n"
-        f"Heart rate: {patient.heart_rate} bpm\n"
-        f"Blood pressure: {patient.systolic_bp}/{patient.diastolic_bp} mmHg\n"
-        f"Oxygen saturation: {patient.oxygen_saturation}%\n"
-        f"Injury/complaint: {patient.injury}\n"
-        "Be clinically conservative. Use the provided tool to return the assessment."
-    )
-
-    payload = {
-        "model": settings.anthropic_model,
-        "max_tokens": 300,
-        "temperature": 0,
-        "system": (
-            "You are an emergency triage copilot for ambulance dispatch. "
-            "Return only a structured triage classification using the provided tool."
-        ),
-        "messages": [{"role": "user", "content": prompt}],
-        "tools": [TRIAGE_TOOL_SCHEMA],
-        "tool_choice": {"type": "tool", "name": "record_triage"},
-    }
-
-    headers = {
-        "x-api-key": settings.anthropic_api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(settings.anthropic_api_url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-        content_blocks = data.get("content", [])
-        tool_block = next(
-            (
-                block
-                for block in content_blocks
-                if block.get("type") == "tool_use" and block.get("name") == "record_triage"
-            ),
-            None,
-        )
-
-        if not tool_block or "input" not in tool_block:
-            raise ValueError("Anthropic response did not include the expected tool output.")
-
-        structured_output = tool_block["input"]
-        return TriageAssessment(
-            severity=structured_output["severity"],
-            department=structured_output["department"],
-            explanation=structured_output["explanation"],
-            patient_summary=structured_output["patient_summary"],
-            source="anthropic",
-        )
-    except Exception as exc:
-        logger.exception("Anthropic triage failed. Falling back to rules-based triage. Error: %s", exc)
-        return fallback_triage(patient)
-

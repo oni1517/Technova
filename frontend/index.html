@@ -93,21 +93,21 @@
                   </div>
                   <div class="vital-trend-bar"><div class="vital-trend-fill" id="spo2Bar"></div></div>
                 </div>
-                <div class="vital-live-card" id="card-sys">
-                  <span class="vital-live-label">SYSTOLIC BP</span>
+                <div class="vital-live-card" id="card-bp">
+                  <span class="vital-live-label">BLOOD PRESSURE</span>
                   <div class="vital-live-value-row">
-                    <strong class="vital-live-value" id="liveSYS">--</strong>
+                    <strong class="vital-live-value" id="liveBP">--</strong>
                     <span class="vital-live-unit">mmHg</span>
                   </div>
-                  <div class="vital-trend-bar"><div class="vital-trend-fill" id="sysBar"></div></div>
+                  <div class="vital-trend-bar"><div class="vital-trend-fill" id="bpBar"></div></div>
                 </div>
-                <div class="vital-live-card" id="card-dia">
-                  <span class="vital-live-label">DIASTOLIC BP</span>
+                <div class="vital-live-card" id="card-rr">
+                  <span class="vital-live-label">RESPIRATORY RATE</span>
                   <div class="vital-live-value-row">
-                    <strong class="vital-live-value" id="liveDIA">--</strong>
-                    <span class="vital-live-unit">mmHg</span>
+                    <strong class="vital-live-value" id="liveRR">--</strong>
+                    <span class="vital-live-unit">/min</span>
                   </div>
-                  <div class="vital-trend-bar"><div class="vital-trend-fill" id="diaBar"></div></div>
+                  <div class="vital-trend-bar"><div class="vital-trend-fill" id="rrBar"></div></div>
                 </div>
               </div>
 
@@ -145,10 +145,10 @@
                   <span class="field-meta">Loads a realistic field narrative and matching vitals</span>
                 </div>
                 <div class="scenario-grid">
-                  <button type="button" class="scenario-button" data-scenario="chest-trauma">Chest Trauma</button>
-                  <button type="button" class="scenario-button" data-scenario="stroke-alert">Stroke Alert</button>
-                  <button type="button" class="scenario-button" data-scenario="burns">Burns</button>
-                  <button type="button" class="scenario-button" data-scenario="pediatric">Pediatric</button>
+                  <button type="button" class="scenario-button" data-scenario="cardiac_arrest">Cardiac Arrest</button>
+                  <button type="button" class="scenario-button" data-scenario="stroke">Stroke</button>
+                  <button type="button" class="scenario-button" data-scenario="head_trauma">Head Trauma</button>
+                  <button type="button" class="scenario-button" data-scenario="respiratory_distress">Resp Distress</button>
                 </div>
               </div>
 
@@ -158,11 +158,12 @@
                   <span class="field-meta">Tap chips to append field notes without replacing the narrative</span>
                 </div>
                 <div class="triage-chip-row">
-                  <button type="button" class="triage-chip" data-chip="airway compromised">Airway Risk</button>
-                  <button type="button" class="triage-chip" data-chip="uncontrolled bleeding">Bleeding</button>
-                  <button type="button" class="triage-chip" data-chip="decreased consciousness">Low GCS</button>
-                  <button type="button" class="triage-chip" data-chip="suspected spinal injury">Spinal</button>
-                  <button type="button" class="triage-chip" data-chip="requires trauma team activation">Trauma Team</button>
+                  <button type="button" class="triage-chip" data-chip="Chest Pain">Chest Pain</button>
+                  <button type="button" class="triage-chip" data-chip="Stroke Signs">Stroke Signs</button>
+                  <button type="button" class="triage-chip" data-chip="Head Injury">Head Injury</button>
+                  <button type="button" class="triage-chip" data-chip="Respiratory Distress">Respiratory Distress</button>
+                  <button type="button" class="triage-chip" data-chip="Unconscious">Unconscious</button>
+                  <button type="button" class="triage-chip" data-chip="Severe Bleeding">Severe Bleeding</button>
                 </div>
               </div>
             </section>
@@ -173,16 +174,8 @@
               <textarea id="injury" rows="5" required>Road traffic accident with chest trauma and heavy bleeding</textarea>
             </label>
 
-            <label class="input-card">
-              <span class="field-label">Call Number</span>
-              <span class="field-meta">Enter the phone number to call in E.164 format</span>
-              <input id="voiceNumber" type="tel" inputmode="tel" placeholder="+919876543210" />
-              <span class="field-meta" id="voiceHelp">Enter a number, then use the voice call button.</span>
-            </label>
-
-            <div class="button-row">
+            <div class="button-row single-action">
               <button type="submit" id="submitButton" class="primary-button">Run Triage</button>
-              <button type="button" id="callButton" class="secondary-button">Run Triage + Voice Call</button>
             </div>
           </form>
         </section>
@@ -256,6 +249,16 @@
                     <strong id="smsValue">-</strong>
                   </article>
                 </div>
+
+                <label class="input-card dispatch-call-card">
+                  <span class="field-label">Call Number</span>
+                  <span class="field-meta">Enter the phone number to call in E.164 format</span>
+                  <div class="call-input-row">
+                    <input id="voiceNumber" type="tel" inputmode="tel" placeholder="+919876543210" />
+                    <button type="button" id="callButton" class="secondary-button call-action-button">Call</button>
+                  </div>
+                  <span class="field-meta" id="voiceHelp">Enter a number, then use the voice call button.</span>
+                </label>
               </div>
             </section>
           </div>

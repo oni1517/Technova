@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List
 
 
 SeverityLevel = Literal["critical", "high", "moderate", "low"]
@@ -14,6 +14,7 @@ DepartmentName = Literal[
     "general_surgery",
     "icu",
 ]
+ScenarioName = Literal["cardiac_arrest", "stroke", "head_trauma", "respiratory_distress"]
 
 
 class Coordinate(BaseModel):
@@ -21,14 +22,59 @@ class Coordinate(BaseModel):
     lon: float
 
 
+class VitalsFrame(BaseModel):
+    hr: int
+    bp_sys: int
+    bp_dia: int
+    bp: str
+    spo2: int
+    rr: int
+    timestamp: float
+
+
+class TriageResult(BaseModel):
+    severity: Literal["low", "moderate", "high", "critical"]
+    icu_required: bool
+    ventilator_required: bool
+    specialist: Optional[str] = None
+
+
 class PatientInput(BaseModel):
-    heart_rate: int = Field(..., ge=20, le=250)
-    systolic_bp: int = Field(..., ge=40, le=300)
-    diastolic_bp: int = Field(..., ge=20, le=200)
-    oxygen_saturation: int = Field(..., ge=40, le=100)
+    hr: int = Field(..., ge=20, le=250)
+    bp_sys: int = Field(..., ge=40, le=300)
+    bp_dia: int = Field(..., ge=20, le=200)
+    spo2: int = Field(..., ge=40, le=100)
+    rr: int = Field(..., ge=1, le=80)
     injury: str = Field(..., min_length=3, max_length=400)
+    scenario: ScenarioName = "cardiac_arrest"
+    chips: list[str] = Field(default_factory=list)
     patient_lat: float = Field(default=18.5204, ge=-90, le=90)
     patient_lon: float = Field(default=73.8567, ge=-180, le=180)
+
+    @property
+    def heart_rate(self) -> int:
+        return self.hr
+
+    @property
+    def systolic_bp(self) -> int:
+        return self.bp_sys
+
+    @property
+    def diastolic_bp(self) -> int:
+        return self.bp_dia
+
+    @property
+    def oxygen_saturation(self) -> int:
+        return self.spo2
+
+    def as_vitals_dict(self) -> dict:
+        return {
+            "hr": self.hr,
+            "bp_sys": self.bp_sys,
+            "bp_dia": self.bp_dia,
+            "spo2": self.spo2,
+            "rr": self.rr,
+        }
 
 
 class VoiceCallInput(PatientInput):
@@ -97,6 +143,6 @@ class TriageResponse(BaseModel):
     voice_call: VoiceCallDelivery | None = None
     map_data: RouteMap
 
+
 class TriageRequest(BaseModel):
-    # ... existing fields (patient_name, age, vitals, etc.)
-    scene_severity: Optional[str] = "MEDIUM" # Added field
+    scene_severity: Optional[str] = "MEDIUM"
