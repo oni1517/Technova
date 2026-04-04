@@ -1,6 +1,6 @@
 from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List
 
 
 SeverityLevel = Literal["critical", "high", "moderate", "low"]
@@ -96,3 +96,7 @@ class TriageResponse(BaseModel):
     sms: SMSDelivery
     voice_call: VoiceCallDelivery | None = None
     map_data: RouteMap
+
+class TriageRequest(BaseModel):
+    # ... existing fields (patient_name, age, vitals, etc.)
+    scene_severity: Optional[str] = "MEDIUM" # Added field

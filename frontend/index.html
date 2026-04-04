@@ -64,7 +64,18 @@
                 </div>
                 <span class="device-status">STREAMING</span>
               </div>
+                  <!-- Scene Analysis Section -->
+<div id="scene-analysis-container" class="section">
+    <h3>Step 1: Scene Assessment</h3>
+    <div class="photo-upload-group">
+        <input type="file" id="scene-photo" accept="image/*" capture="environment" style="display:none">
+        <button onclick="document.getElementById('scene-photo').click()" class="btn-secondary">📷 Capture Scene Photo</button>
+        <button id="analyze-btn" class="btn-primary">Analyze Scene</button>
+    </div>
+    <div id="severity-banner" class="banner hidden"></div>
+</div>
 
+<!-- Existing Vitals Form below this... -->
               <div class="vitals-live-grid">
                 <div class="vital-live-card" id="card-hr">
                   <span class="vital-live-label">HEART RATE</span>

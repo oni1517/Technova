@@ -685,3 +685,58 @@ initLocation();
 initMap();
 syncTopCardHeights();
 window.addEventListener("resize", syncTopCardHeights);
+let currentSceneSeverity = "MEDIUM"; // Default
+
+document.getElementById('analyze-btn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('scene-photo');
+    const banner = document.getElementById('severity-banner');
+    
+    if (!fileInput.files[0]) {
+        alert("Please capture a photo first.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', fileInput.files[0]);
+
+    try {
+        const response = await fetch('/analyze-scene', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        currentSceneSeverity = data.severity;
+        
+        // UI Update
+        banner.classList.remove('hidden', 'bg-red', 'bg-yellow', 'bg-green');
+        if (data.severity === 'HIGH') {
+            banner.innerText = `⚠ HIGH SEVERITY SCENE — Routing to Level 1 Trauma Centers only`;
+            banner.classList.add('bg-red');
+        } else if (data.severity === 'MEDIUM') {
+            banner.innerText = `⚡ MEDIUM SEVERITY SCENE — Standard routing active`;
+            banner.classList.add('bg-yellow');
+        } else {
+            banner.innerText = `✓ LOW SEVERITY SCENE — Standard routing active`;
+            banner.classList.add('bg-green');
+        }
+    } catch (error) {
+        console.error("Analysis failed", error);
+        alert("Scene analysis failed. Using standard routing.");
+    }
+});
+
+// UPDATE: Modify your existing triage submission function
+async function submitTriage() {
+    const vitalsData = {
+        // ... existing vitals gathering logic
+        scene_severity: currentSceneSeverity // Append the AI result here
+    };
+
+    const response = await fetch('/triage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vitalsData)
+    });
+    // ... handle response
+}

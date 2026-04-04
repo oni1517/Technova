@@ -2,7 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+import base64
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +13,7 @@ from backend.config import get_settings
 from backend.db import Database
 from backend.models import Coordinate, PatientInput, RouteMap, TriageResponse, VoiceCallInput
 from backend.routing import select_best_hospital
+from backend.scene_classifier import classify_scene
 from backend.triage import classify_patient
 from backend.utils import mask_phone_number, queue_bolna_vobiz_call, send_sms_alert
 
@@ -143,3 +146,17 @@ async def triage_and_queue_voice_call(payload: VoiceCallInput) -> TriageResponse
         trigger_voice_call=True,
         recipient_phone_number=payload.recipient_phone_number,
     )
+
+
+@app.post("/analyze-scene")
+async def analyze_scene(image: UploadFile = File(...)):
+    try:
+        # Read image bytes and convert to base64
+        image_bytes = await image.read()
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        
+        # Get classification from Ollama
+        analysis = await classify_scene(image_base64)
+        return analysis
+    except Exception as e:
+        return {"severity": "MEDIUM", "confidence": 0.0, "indicators": [], "reasoning": str(e)}

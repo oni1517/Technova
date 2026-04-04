@@ -101,3 +101,19 @@ async def select_best_hospital(
 
     return selected, ranked, False, reasoning
 
+# Update function signature to accept scene_severity
+async def route_patient(triage_data: dict, scene_severity: str = "MEDIUM"):
+    # 1. Start with all available hospitals
+    hospitals = await db.get_all_hospitals() 
+
+    # 2. HIGH SEVERITY OVERRIDE
+    # If severity is HIGH, we strictly filter for Level 1 Trauma Centers FIRST
+    if scene_severity == "HIGH":
+        hospitals = [h for h in hospitals if h.trauma_level == 1]
+        
+        # Fallback: If no Level 1s are available/online, revert to all to avoid 0 results
+        if not hospitals:
+            hospitals = await db.get_all_hospitals()
+
+    # 3. Continue with existing distance/specialty filtering
+    # ... (existing routing logic)
