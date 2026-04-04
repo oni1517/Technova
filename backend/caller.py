@@ -60,7 +60,8 @@ class VoiceCallHospitalState:
     phone_number: str | None
     eta_minutes: int
     distance_km: float
-    score: float
+    raw_score: float
+    display_score: float
     call_sid: str | None = None
     call_status: str = "pending"
     response_digit: str | None = None
@@ -187,7 +188,8 @@ def _session_snapshot(session: VoiceCallSession) -> dict[str, Any]:
             "phone_number": hospital.phone_number,
             "eta_minutes": hospital.eta_minutes,
             "distance_km": hospital.distance_km,
-            "score": hospital.score,
+            "raw_score": hospital.raw_score,
+            "display_score": hospital.display_score,
             "call_sid": hospital.call_sid,
             "call_status": hospital.call_status,
             "response_digit": hospital.response_digit,
@@ -359,24 +361,12 @@ async def start_parallel_hospital_calls(payload: PatientInput, request: Request)
 
     try:
         triage = await classify_patient(payload, settings)
-        routing_preface: list[str] = []
-
-        filtered_hospitals = await database.fetch_hospitals(
-            department=None if triage.severity == "critical" else triage.department,
-            icu_only=triage.severity == "critical",
-        )
-        if not filtered_hospitals:
-            if triage.severity != "critical":
-                routing_preface.append(
-                    f"No hospitals currently advertise {triage.department}; expanded search to all hospitals."
-                )
-            filtered_hospitals = await database.fetch_hospitals()
+        hospitals = await database.fetch_hospitals()
 
         selected_hospital, candidate_hospitals, override_applied, routing_reasoning = await select_best_hospital(
             patient=payload,
             triage=triage,
-            hospitals=filtered_hospitals,
-            settings=settings,
+            hospitals=hospitals,
         )
 
         top_hospitals = candidate_hospitals[:MAX_PARALLEL_HOSPITAL_CALLS]
@@ -397,7 +387,7 @@ async def start_parallel_hospital_calls(payload: PatientInput, request: Request)
             severity=triage.severity,
             department=triage.department,
             override_applied=override_applied,
-            routing_reasoning=routing_preface + routing_reasoning,
+            routing_reasoning=routing_reasoning,
             selected_hospital_id=selected_hospital.id if selected_hospital else None,
         )
 
@@ -409,7 +399,8 @@ async def start_parallel_hospital_calls(payload: PatientInput, request: Request)
                 phone_number=phone_number,
                 eta_minutes=hospital.eta_minutes,
                 distance_km=hospital.distance_km,
-                score=hospital.score,
+                raw_score=hospital.raw_score,
+                display_score=hospital.display_score,
             )
 
         await _store_voice_session(session)

@@ -17,6 +17,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "cardiology", "icu"],
             available_beds=7,
             icu_available=True,
+            rating=4.5,
         ),
         HospitalRecord(
             id=2,
@@ -26,6 +27,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "neurology", "icu"],
             available_beds=5,
             icu_available=True,
+            rating=4.3,
         ),
         HospitalRecord(
             id=3,
@@ -35,6 +37,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "pulmonology", "icu"],
             available_beds=6,
             icu_available=True,
+            rating=4.1,
         ),
         HospitalRecord(
             id=4,
@@ -44,6 +47,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "general_surgery", "orthopedics", "icu"],
             available_beds=8,
             icu_available=True,
+            rating=4.0,
         ),
         HospitalRecord(
             id=5,
@@ -53,6 +57,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["orthopedics", "trauma", "emergency"],
             available_beds=10,
             icu_available=False,
+            rating=4.4,
         ),
         HospitalRecord(
             id=6,
@@ -62,6 +67,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "general_surgery", "pulmonology", "icu"],
             available_beds=9,
             icu_available=True,
+            rating=4.2,
         ),
         HospitalRecord(
             id=7,
@@ -71,6 +77,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "general_surgery", "pulmonology"],
             available_beds=4,
             icu_available=False,
+            rating=3.9,
         ),
         HospitalRecord(
             id=8,
@@ -80,6 +87,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "neurology", "icu"],
             available_beds=11,
             icu_available=True,
+            rating=4.6,
         ),
         HospitalRecord(
             id=9,
@@ -89,6 +97,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "neurology", "icu"],
             available_beds=12,
             icu_available=True,
+            rating=4.7,
         ),
         HospitalRecord(
             id=10,
@@ -98,6 +107,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "general_surgery", "icu"],
             available_beds=15,
             icu_available=True,
+            rating=3.8,
         ),
         HospitalRecord(
             id=11,
@@ -107,6 +117,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "pulmonology", "icu"],
             available_beds=10,
             icu_available=True,
+            rating=4.5,
         ),
         HospitalRecord(
             id=12,
@@ -116,6 +127,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "general_surgery", "trauma", "icu"],
             available_beds=9,
             icu_available=True,
+            rating=4.0,
         ),
         HospitalRecord(
             id=13,
@@ -125,6 +137,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "pulmonology", "general_surgery"],
             available_beds=6,
             icu_available=False,
+            rating=3.9,
         ),
         HospitalRecord(
             id=14,
@@ -134,6 +147,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "neurology", "icu"],
             available_beds=13,
             icu_available=True,
+            rating=4.6,
         ),
         HospitalRecord(
             id=15,
@@ -143,6 +157,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "general_surgery", "orthopedics", "icu"],
             available_beds=8,
             icu_available=True,
+            rating=4.1,
         ),
         HospitalRecord(
             id=16,
@@ -152,6 +167,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "orthopedics", "trauma"],
             available_beds=7,
             icu_available=False,
+            rating=3.7,
         ),
         HospitalRecord(
             id=17,
@@ -161,6 +177,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "orthopedics", "icu"],
             available_beds=9,
             icu_available=True,
+            rating=4.0,
         ),
         HospitalRecord(
             id=18,
@@ -170,6 +187,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "general_surgery"],
             available_beds=5,
             icu_available=False,
+            rating=3.6,
         ),
         HospitalRecord(
             id=19,
@@ -179,6 +197,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "cardiology", "pulmonology", "icu"],
             available_beds=10,
             icu_available=True,
+            rating=4.4,
         ),
         HospitalRecord(
             id=20,
@@ -188,6 +207,7 @@ def sample_hospitals() -> list[HospitalRecord]:
             departments=["emergency", "trauma", "neurology", "icu"],
             available_beds=14,
             icu_available=True,
+            rating=4.2,
         ),
     ]
 
@@ -231,8 +251,15 @@ class Database:
                     lon DOUBLE PRECISION NOT NULL,
                     departments TEXT[] NOT NULL DEFAULT '{}',
                     available_beds INTEGER NOT NULL DEFAULT 0,
-                    icu_available BOOLEAN NOT NULL DEFAULT FALSE
+                    icu_available BOOLEAN NOT NULL DEFAULT FALSE,
+                    rating DOUBLE PRECISION NOT NULL DEFAULT 3
                 );
+                """
+            )
+            await conn.execute(
+                """
+                ALTER TABLE hospitals
+                ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION NOT NULL DEFAULT 3;
                 """
             )
 
@@ -251,8 +278,9 @@ class Database:
                     lon,
                     departments,
                     available_beds,
-                    icu_available
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    icu_available,
+                    rating
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (name) DO NOTHING;
                 """
                 ,
@@ -264,6 +292,7 @@ class Database:
                         hospital.departments,
                         hospital.available_beds,
                         hospital.icu_available,
+                        hospital.rating,
                     )
                     for hospital in self.fallback_cache
                 ],
@@ -281,7 +310,7 @@ class Database:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT id, name, lat, lon, departments, available_beds, icu_available
+                    SELECT id, name, lat, lon, departments, available_beds, icu_available, rating
                     FROM hospitals
                     WHERE ($1::text IS NULL OR $1 = ANY(departments))
                       AND ($2::boolean = FALSE OR icu_available = TRUE)

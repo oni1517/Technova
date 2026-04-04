@@ -401,9 +401,8 @@ function updateMap(selectedHospital = null) {
 function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
-  const alternateHospitals = (hospitals || []).slice(1, 5);
-
-  alternateHospitals.forEach((hospital, index) => {
+  (hospitals || []).slice(0, 5).forEach((hospital, index) => {
+    const displayScore = Number(hospital.display_score ?? 0);
     const card = document.createElement("article");
     const progress = scorePercent(hospital.score);
     const tone = scoreColor(hospital.score || 0);

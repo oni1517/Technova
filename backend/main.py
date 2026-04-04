@@ -72,24 +72,12 @@ async def build_triage_response(
     try:
         runtime_settings = get_settings()
         triage = await classify_patient(payload, runtime_settings)
-        routing_preface: list[str] = []
-
-        filtered_hospitals = await database.fetch_hospitals(
-            department=None if triage.severity == "critical" else triage.department,
-            icu_only=triage.severity == "critical",
-        )
-        if not filtered_hospitals:
-            if triage.severity != "critical":
-                routing_preface.append(
-                    f"No hospitals currently advertise {triage.department}; expanded search to all hospitals."
-                )
-            filtered_hospitals = await database.fetch_hospitals()
+        hospitals = await database.fetch_hospitals()
 
         selected_hospital, candidate_hospitals, override_applied, routing_reasoning = await select_best_hospital(
             patient=payload,
             triage=triage,
-            hospitals=filtered_hospitals,
-            settings=runtime_settings,
+            hospitals=hospitals,
         )
 
         sms_result = await send_sms_alert(
@@ -132,7 +120,7 @@ async def build_triage_response(
             override_applied=override_applied,
             selected_hospital=selected_hospital,
             candidate_hospitals=candidate_hospitals,
-            routing_reasoning=routing_preface + routing_reasoning,
+            routing_reasoning=routing_reasoning,
             sms=sms_result,
             voice_call=voice_call_result,
             map_data=map_data,

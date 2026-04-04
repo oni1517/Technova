@@ -101,7 +101,7 @@ def fallback_triage(patient: PatientInput) -> TriageAssessment:
         severity = "critical"
         explanation = [
             "Vitals indicate immediate hemodynamic or respiratory instability.",
-            "Critical override is likely appropriate if an ICU-capable facility is available.",
+            "Routing should heavily prioritize faster arrival and the closest specialization fit.",
         ]
     elif (
         patient.oxygen_saturation <= 92
@@ -118,7 +118,7 @@ def fallback_triage(patient: PatientInput) -> TriageAssessment:
         severity = "moderate"
         explanation = [
             "Patient is symptomatic but not currently in immediate collapse.",
-            "Weighted routing can balance ETA and bed availability safely.",
+            "Routing can lean on rating while still considering travel time and specialization fit.",
         ]
     else:
         severity = "low"

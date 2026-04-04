@@ -34,10 +34,6 @@ class Settings(BaseSettings):
     default_patient_lat: float = 18.5204
     default_patient_lon: float = 73.8567
 
-    eta_weight: float = 0.65
-    bed_weight: float = 0.25
-    department_weight: float = 0.10
-
 
 def get_settings() -> Settings:
     return Settings()
