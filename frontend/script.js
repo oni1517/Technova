@@ -36,6 +36,8 @@ const dispatchRecommendation = document.getElementById("dispatchRecommendation")
 const dispatchCard = document.getElementById("dispatchCard");
 const reasoningBadge = document.getElementById("reasoningBadge");
 const injuryField = document.getElementById("injury");
+const voiceNumberInput = document.getElementById("voiceNumber");
+const voiceHelp = document.getElementById("voiceHelp");
 const triagePanel = document.querySelector(".triage-panel");
 const dispatchPanel = document.querySelector(".dispatch-panel");
 const scenarioButtons = Array.from(document.querySelectorAll(".scenario-button"));
@@ -125,8 +127,29 @@ function severityBadgeMarkup(severity) {
   return `<span class="severity-dot"></span><span>${severityLabel(severity)}</span>`;
 }
 
+function resolveHospitalScore(hospital) {
+  if (!hospital) return null;
+
+  const numericDisplayScore = Number(hospital.display_score);
+  if (Number.isFinite(numericDisplayScore) && numericDisplayScore > 0) {
+    return numericDisplayScore;
+  }
+
+  const numericScore = Number(hospital.score);
+  if (Number.isFinite(numericScore)) {
+    return numericScore <= 1 ? numericScore * 100 : numericScore;
+  }
+
+  const numericRawScore = Number(hospital.raw_score);
+  if (Number.isFinite(numericRawScore)) {
+    return 100 / (1 + Math.abs(numericRawScore));
+  }
+
+  return null;
+}
+
 function scorePercent(score) {
-  return Math.max(8, Math.min(100, Math.round((score || 0) * 100)));
+  return Math.max(8, Math.min(100, Math.round(score || 0)));
 }
 
 function metricTone(value, type) {
@@ -135,7 +158,7 @@ function metricTone(value, type) {
   }
 
   if (type === "score") {
-    return value >= 0.8 ? "value-green" : value >= 0.6 ? "value-amber" : "value-red";
+    return value >= 80 ? "value-green" : value >= 60 ? "value-amber" : "value-red";
   }
 
   if (type === "beds") {
@@ -146,8 +169,8 @@ function metricTone(value, type) {
 }
 
 function scoreColor(score) {
-  if (score >= 0.8) return "#22c55e";
-  if (score >= 0.6) return "#f59e0b";
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#f59e0b";
   return "#ef4444";
 }
 
@@ -290,6 +313,50 @@ function appendTriageChip(chip) {
   window.setTimeout(() => chip.classList.remove("active"), 900);
 }
 
+function normalizePhoneNumber() {
+  return voiceNumberInput?.value.trim() || "";
+}
+
+function hasManualVoiceNumber() {
+  return Boolean(normalizePhoneNumber());
+}
+
+function isValidPhoneNumber(phoneNumber) {
+  return /^\+[1-9]\d{7,14}$/.test(phoneNumber);
+}
+
+function updateVoiceHelp() {
+  if (!voiceHelp) return;
+
+  const manualNumber = normalizePhoneNumber();
+
+  if (manualNumber) {
+    voiceHelp.textContent = isValidPhoneNumber(manualNumber)
+      ? `Call will be placed to ${manualNumber}.`
+      : "Use E.164 format like +919876543210.";
+    return;
+  }
+
+  if (healthState.voiceDefaultConfigured) {
+    voiceHelp.textContent = "Leave the field empty to use the server default number, or type a number to override it.";
+    return;
+  }
+
+  if (healthState.voiceReady) {
+    voiceHelp.textContent = "Enter a number, then use the voice call button.";
+    return;
+  }
+
+  voiceHelp.textContent = "Voice calling is unavailable until the server voice setup is configured.";
+}
+
+function updateCallButtonState() {
+  const manualNumber = normalizePhoneNumber();
+  const canUseManualNumber = manualNumber ? isValidPhoneNumber(manualNumber) : false;
+  callButton.disabled = !healthState.voiceReady || !(healthState.voiceDefaultConfigured || canUseManualNumber);
+  updateVoiceHelp();
+}
+
 async function checkHealth() {
   try {
     const response = await fetch("/api/health");
@@ -302,12 +369,14 @@ async function checkHealth() {
 
     if (!healthState.voiceReady) {
       callButton.disabled = true;
+      updateVoiceHelp();
       return;
     }
-    callButton.disabled = !healthState.voiceDefaultConfigured;
+    updateCallButtonState();
   } catch (error) {
     apiStatus.textContent = "Offline";
     callButton.disabled = true;
+    updateVoiceHelp();
   }
 }
 
@@ -401,11 +470,16 @@ function updateMap(selectedHospital = null) {
 function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
-  (hospitals || []).slice(0, 5).forEach((hospital, index) => {
-    const displayScore = Number(hospital.display_score ?? 0);
+  const recommendedHospitalName = hospitalValue?.textContent?.trim().toLowerCase() || "";
+  const alternativeHospitals = (hospitals || []).filter((hospital) => {
+    return hospital?.name?.trim().toLowerCase() !== recommendedHospitalName;
+  });
+
+  alternativeHospitals.slice(0, 5).forEach((hospital, index) => {
+    const displayScore = resolveHospitalScore(hospital) ?? 0;
     const card = document.createElement("article");
-    const progress = scorePercent(hospital.score);
-    const tone = scoreColor(hospital.score || 0);
+    const progress = scorePercent(displayScore);
+    const tone = scoreColor(displayScore);
     const departmentText = titleize((hospital.departments || []).join(", "));
     const icuText = hospital.icu_available ? "ICU available" : "No ICU";
     const bedText = `${hospital.available_beds} beds open`;
@@ -426,7 +500,7 @@ function renderHospitals(hospitals) {
           <span class="metric-chip">${bedText}</span>
           <span class="metric-chip">${icuText}</span>
         </div>
-        <span class="${metricTone(hospital.score || 0, "score")}">${hospital.score.toFixed(3)}</span>
+        <span class="${metricTone(displayScore, "score")}">${displayScore.toFixed(1)}%</span>
       </div>
       <div class="progress-wrap">
         <div class="progress-meta">
@@ -448,8 +522,9 @@ function updateSummary(data) {
   const triage = data.triage;
   const hospital = data.selected_hospital;
   const severity = triage.severity;
-  const hospitalScore = hospital?.score;
+  const hospitalScore = resolveHospitalScore(hospital);
   const hospitalBeds = hospital?.available_beds ?? null;
+  const voiceCall = data.voice_call;
 
   severityChip.innerHTML = severityBadgeMarkup(severity);
   severityChip.className = severityBadgeClass(severity);
@@ -461,7 +536,7 @@ function updateSummary(data) {
   etaValue.className = hospital ? metricTone(hospital.eta_minutes, "eta") : "";
   smsValue.textContent = hospitalBeds != null ? `${hospitalBeds}` : "-";
   smsValue.className = hospitalBeds != null ? metricTone(hospitalBeds, "beds") : "";
-  scoreValue.textContent = hospitalScore != null ? hospitalScore.toFixed(3) : "-";
+  scoreValue.textContent = hospitalScore != null ? `${hospitalScore.toFixed(1)}%` : "-";
   scoreValue.className = hospitalScore != null ? metricTone(hospitalScore, "score") : "";
   triageSource.textContent = `Triage via ${triage.source}`;
   dispatchRecommendation.innerHTML = `
@@ -477,6 +552,14 @@ function updateSummary(data) {
   renderReasoning([
     ...triage.explanation,
     ...data.routing_reasoning,
+    data.sms?.error ? `SMS: ${data.sms.error}` : `SMS: ${data.sms?.status || "not run"}.`,
+    voiceCall
+      ? (
+        voiceCall.error
+          ? `Voice call: ${voiceCall.error}`
+          : `Voice call: ${voiceCall.status} via ${voiceCall.provider}${voiceCall.execution_id ? ` (${voiceCall.execution_id})` : ""}.`
+      )
+      : "Voice call: not triggered.",
   ]);
 
   renderHospitals(data.candidate_hospitals);
@@ -496,6 +579,10 @@ function buildPayload(includeVoiceNumber = false) {
   };
 
   if (includeVoiceNumber) {
+    const manualNumber = normalizePhoneNumber();
+    if (manualNumber) {
+      payload.recipient_phone_number = manualNumber;
+    }
     return payload;
   }
 
@@ -503,9 +590,24 @@ function buildPayload(includeVoiceNumber = false) {
 }
 
 async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNumber = false) {
-  if (endpoint === "/api/voice/test-call" && !healthState.voiceDefaultConfigured) {
+  if (endpoint === "/api/voice/test-call" && !healthState.voiceReady) {
     renderReasoning([
-      "Voice call not started: no default recipient number is configured on the server.",
+      "Voice call not started: the server voice integration is not configured.",
+    ]);
+    return;
+  }
+
+  const manualNumber = normalizePhoneNumber();
+  if (endpoint === "/api/voice/test-call" && manualNumber && !isValidPhoneNumber(manualNumber)) {
+    renderReasoning([
+      "Voice call not started: enter the phone number in E.164 format, for example +919876543210.",
+    ]);
+    return;
+  }
+
+  if (endpoint === "/api/voice/test-call" && !manualNumber && !healthState.voiceDefaultConfigured) {
+    renderReasoning([
+      "Voice call not started: enter a phone number first.",
     ]);
     return;
   }
@@ -541,7 +643,7 @@ async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNum
     }
   } finally {
     submitButton.disabled = false;
-    callButton.disabled = !healthState.voiceReady || !healthState.voiceDefaultConfigured;
+    updateCallButtonState();
     submitButton.textContent = "Run Triage";
     callButton.textContent = "Run Triage + Voice Call";
     button.textContent = idleText;
@@ -571,10 +673,13 @@ triageChips.forEach((chip) => {
   chip.addEventListener("click", () => appendTriageChip(chip));
 });
 
+voiceNumberInput?.addEventListener("input", updateCallButtonState);
+
 formatClock();
 renderLiveVitals();
 setInterval(tickLiveVitals, 1400);
 setInterval(formatClock, 1000);
+updateVoiceHelp();
 checkHealth();
 initLocation();
 initMap();

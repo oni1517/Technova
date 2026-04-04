@@ -162,6 +162,13 @@
               <textarea id="injury" rows="5" required>Road traffic accident with chest trauma and heavy bleeding</textarea>
             </label>
 
+            <label class="input-card">
+              <span class="field-label">Call Number</span>
+              <span class="field-meta">Enter the phone number to call in E.164 format</span>
+              <input id="voiceNumber" type="tel" inputmode="tel" placeholder="+919876543210" />
+              <span class="field-meta" id="voiceHelp">Enter a number, then use the voice call button.</span>
+            </label>
+
             <div class="button-row">
               <button type="submit" id="submitButton" class="primary-button">Run Triage</button>
               <button type="button" id="callButton" class="secondary-button">Run Triage + Voice Call</button>
