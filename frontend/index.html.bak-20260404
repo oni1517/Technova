@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Golden Hour Emergency Triage & Routing System</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/frontend/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <h1>Golden Hour Emergency Triage & Routing System</h1>
+        </div>
+        <div class="hero-status">
+          <div class="status-card">
+            <span class="status-label">Patient Location</span>
+            <strong id="locationStatus">Using Pune default</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">API Status</span>
+            <strong id="apiStatus">Checking...</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel form-panel">
+          <h2>Paramedic Intake</h2>
+          <form id="triageForm">
+            <label>
+              Heart Rate (bpm)
+              <input type="number" id="heartRate" value="132" min="20" max="250" required />
+            </label>
+            <label>
+              Systolic BP
+              <input type="number" id="systolicBp" value="92" min="40" max="300" required />
+            </label>
+            <label>
+              Diastolic BP
+              <input type="number" id="diastolicBp" value="58" min="20" max="200" required />
+            </label>
+            <label>
+              Oxygen Saturation (%)
+              <input type="number" id="oxygen" value="89" min="40" max="100" required />
+            </label>
+            <label>
+              Injury / Complaint
+              <textarea id="injury" rows="4" required>Road traffic accident with chest trauma and heavy bleeding</textarea>
+            </label>
+            <label>
+              Voice Test Number (E.164)
+              <input type="tel" id="voiceNumber" placeholder="+911234567890" />
+            </label>
+            <p id="voiceHelp" class="field-help">Checking voice-call setup...</p>
+            <div class="button-row">
+              <button type="submit" id="submitButton">Run Triage</button>
+              <button type="button" id="callButton" class="secondary-button">Run Triage + Voice Call</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel result-panel">
+          <div class="result-header">
+            <h2>Dispatch Result</h2>
+            <span class="chip" id="severityChip">Awaiting input</span>
+          </div>
+          <div id="summaryCards" class="summary-cards">
+            <article class="summary-card">
+              <span>Department</span>
+              <strong id="departmentValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>Selected Hospital</span>
+              <strong id="hospitalValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>ETA</span>
+              <strong id="etaValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>SMS</span>
+              <strong id="smsValue">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>Voice Call</span>
+              <strong id="voiceValue">-</strong>
+            </article>
+          </div>
+
+          <div class="reasoning-block">
+            <h3>Routing Reasoning</h3>
+            <ul id="reasoningList"></ul>
+          </div>
+
+          <div class="reasoning-block">
+            <h3>Candidate Hospitals</h3>
+            <div id="hospitalList" class="candidate-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel map-panel">
+        <div class="map-header">
+          <div>
+            <h2>Route View</h2>
+            <p>Leaflet route preview from current ambulance position to selected hospital.</p>
+          </div>
+          <div id="triageSource" class="chip chip-muted">No triage yet</div>
+        </div>
+        <div id="map"></div>
+      </section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script src="/frontend/script.js"></script>
+  </body>
+</html>

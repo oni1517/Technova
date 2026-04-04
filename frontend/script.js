@@ -4,14 +4,26 @@ const state = {
   map: null,
   markers: [],
   routeLine: null,
+  liveVitals: {
+    heart_rate: 132,
+    systolic_bp: 92,
+    diastolic_bp: 58,
+    oxygen_saturation: 89,
+  },
+};
+
+const healthState = {
+  voiceReady: false,
+  voiceDefaultConfigured: false,
 };
 
 const severityChip = document.getElementById("severityChip");
+const severityHeadline = document.getElementById("severityHeadline");
 const departmentValue = document.getElementById("departmentValue");
 const hospitalValue = document.getElementById("hospitalValue");
 const etaValue = document.getElementById("etaValue");
 const smsValue = document.getElementById("smsValue");
-const voiceValue = document.getElementById("voiceValue");
+const scoreValue = document.getElementById("scoreValue");
 const reasoningList = document.getElementById("reasoningList");
 const hospitalList = document.getElementById("hospitalList");
 const triageSource = document.getElementById("triageSource");
@@ -19,43 +31,282 @@ const submitButton = document.getElementById("submitButton");
 const callButton = document.getElementById("callButton");
 const apiStatus = document.getElementById("apiStatus");
 const locationStatus = document.getElementById("locationStatus");
-const voiceNumberInput = document.getElementById("voiceNumber");
-const voiceHelp = document.getElementById("voiceHelp");
+const liveTime = document.getElementById("liveTime");
+const dispatchRecommendation = document.getElementById("dispatchRecommendation");
+const dispatchCard = document.getElementById("dispatchCard");
+const reasoningBadge = document.getElementById("reasoningBadge");
+const injuryField = document.getElementById("injury");
+const triagePanel = document.querySelector(".triage-panel");
+const dispatchPanel = document.querySelector(".dispatch-panel");
+const scenarioButtons = Array.from(document.querySelectorAll(".scenario-button"));
+const triageChips = Array.from(document.querySelectorAll(".triage-chip"));
 
-const healthState = {
-  voiceReady: false,
-  voiceDefaultConfigured: false,
-  voiceDefaultMasked: "",
+const liveVitalsConfig = {
+  heart_rate: {
+    valueEl: document.getElementById("liveHR"),
+    barEl: document.getElementById("hrBar"),
+    cardEl: document.getElementById("card-hr"),
+    min: 40,
+    max: 180,
+  },
+  oxygen_saturation: {
+    valueEl: document.getElementById("liveSPO2"),
+    barEl: document.getElementById("spo2Bar"),
+    cardEl: document.getElementById("card-spo2"),
+    min: 70,
+    max: 100,
+  },
+  systolic_bp: {
+    valueEl: document.getElementById("liveSYS"),
+    barEl: document.getElementById("sysBar"),
+    cardEl: document.getElementById("card-sys"),
+    min: 70,
+    max: 180,
+  },
+  diastolic_bp: {
+    valueEl: document.getElementById("liveDIA"),
+    barEl: document.getElementById("diaBar"),
+    cardEl: document.getElementById("card-dia"),
+    min: 40,
+    max: 120,
+  },
 };
+
+const scenarioPresets = {
+  "chest-trauma": {
+    injury: "Road traffic accident with chest trauma, heavy bleeding, and suspected rib fractures.",
+    vitals: { heart_rate: 132, systolic_bp: 88, diastolic_bp: 58, oxygen_saturation: 89 },
+  },
+  "stroke-alert": {
+    injury: "Sudden facial droop, slurred speech, right-sided weakness, and last known well under 45 minutes.",
+    vitals: { heart_rate: 104, systolic_bp: 168, diastolic_bp: 102, oxygen_saturation: 95 },
+  },
+  burns: {
+    injury: "Industrial burn exposure with partial-thickness burns to torso and arms, severe pain, and smoke inhalation risk.",
+    vitals: { heart_rate: 126, systolic_bp: 96, diastolic_bp: 62, oxygen_saturation: 91 },
+  },
+  pediatric: {
+    injury: "Pediatric fall with altered responsiveness, possible head injury, repeated vomiting, and anxious guardian on scene.",
+    vitals: { heart_rate: 138, systolic_bp: 92, diastolic_bp: 60, oxygen_saturation: 94 },
+  },
+};
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function randomStep(size) {
+  return Math.round((Math.random() * size * 2 - size) * 10) / 10;
+}
 
 function titleize(text) {
   return text.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatClock() {
+  if (!liveTime) return;
+
+  liveTime.textContent = new Intl.DateTimeFormat([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date());
+}
+
+function severityLabel(severity) {
+  return severity ? severity.toUpperCase() : "STANDBY";
+}
+
+function severityBadgeClass(severity) {
+  return `chip severity-${severity || "low"}`;
+}
+
+function severityBadgeMarkup(severity) {
+  return `<span class="severity-dot"></span><span>${severityLabel(severity)}</span>`;
+}
+
+function scorePercent(score) {
+  return Math.max(8, Math.min(100, Math.round((score || 0) * 100)));
+}
+
+function metricTone(value, type) {
+  if (type === "eta") {
+    return value <= 12 ? "value-green" : value <= 20 ? "value-amber" : "value-red";
+  }
+
+  if (type === "score") {
+    return value >= 0.8 ? "value-green" : value >= 0.6 ? "value-amber" : "value-red";
+  }
+
+  if (type === "beds") {
+    return value >= 10 ? "value-green" : value >= 4 ? "value-amber" : "value-red";
+  }
+
+  return value ? "value-green" : "value-red";
+}
+
+function scoreColor(score) {
+  if (score >= 0.8) return "#22c55e";
+  if (score >= 0.6) return "#f59e0b";
+  return "#ef4444";
+}
+
+function badgeForSeverity(severity) {
+  return `<span class="${severityBadgeClass(severity)}">${severityBadgeMarkup(severity)}</span>`;
+}
+
+function vitalTone(key, value) {
+  if (key === "heart_rate") {
+    if (value >= 130 || value <= 45) return "alert";
+    if (value >= 110 || value <= 55) return "warning";
+    return "normal";
+  }
+
+  if (key === "oxygen_saturation") {
+    if (value <= 88) return "alert";
+    if (value <= 93) return "warning";
+    return "normal";
+  }
+
+  if (key === "systolic_bp") {
+    if (value <= 85 || value >= 165) return "alert";
+    if (value <= 95 || value >= 145) return "warning";
+    return "normal";
+  }
+
+  if (value <= 50 || value >= 105) return "alert";
+  if (value <= 60 || value >= 95) return "warning";
+  return "normal";
+}
+
+function toneColor(tone) {
+  if (tone === "alert") return "#ef4444";
+  if (tone === "warning") return "#f59e0b";
+  return "#22c55e";
+}
+
+function renderLiveVital(key, value) {
+  const config = liveVitalsConfig[key];
+  if (!config?.valueEl || !config?.barEl || !config?.cardEl) return;
+
+  const tone = vitalTone(key, value);
+  const width = ((value - config.min) / (config.max - config.min)) * 100;
+
+  config.valueEl.textContent = String(Math.round(value));
+  config.valueEl.className = `vital-live-value ${tone}`;
+  config.cardEl.className = tone === "normal" ? "vital-live-card" : `vital-live-card ${tone}`;
+  config.barEl.style.width = `${clamp(width, 6, 100)}%`;
+  config.barEl.style.backgroundColor = toneColor(tone);
+}
+
+function renderLiveVitals() {
+  Object.entries(state.liveVitals).forEach(([key, value]) => {
+    renderLiveVital(key, value);
+  });
+}
+
+function tickLiveVitals() {
+  const nextHeartRate = clamp(
+    state.liveVitals.heart_rate + randomStep(6) + (Math.random() < 0.18 ? randomStep(10) : 0),
+    82,
+    152
+  );
+  const nextSpo2 = clamp(
+    state.liveVitals.oxygen_saturation + randomStep(1.4) + (Math.random() < 0.12 ? -1 : 0),
+    84,
+    99
+  );
+  const nextSystolic = clamp(
+    state.liveVitals.systolic_bp + randomStep(4) + (Math.random() < 0.16 ? randomStep(7) : 0),
+    82,
+    132
+  );
+  const nextDiastolic = clamp(state.liveVitals.diastolic_bp + randomStep(3), 48, 86);
+
+  state.liveVitals = {
+    heart_rate: Math.round(nextHeartRate),
+    systolic_bp: Math.max(Math.round(nextSystolic), Math.round(nextDiastolic) + 18),
+    diastolic_bp: Math.round(nextDiastolic),
+    oxygen_saturation: Math.round(nextSpo2),
+  };
+
+  renderLiveVitals();
+}
+
+function renderReasoning(lines) {
+  reasoningList.innerHTML = "";
+
+  (lines || []).forEach((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    reasoningList.appendChild(item);
+  });
+}
+
+function syncTopCardHeights() {
+  if (!triagePanel || !dispatchPanel) return;
+
+  triagePanel.style.height = "";
+  dispatchPanel.style.height = "";
+
+  if (window.innerWidth <= 980) return;
+
+  const targetHeight = dispatchPanel.offsetHeight;
+  if (targetHeight > 0) {
+    triagePanel.style.height = `${targetHeight}px`;
+  }
+}
+
+function setActiveControl(elements, activeElement, allowToggleOff = false) {
+  elements.forEach((element) => {
+    const shouldActivate = element === activeElement && !(allowToggleOff && element.classList.contains("active"));
+    element.classList.toggle("active", shouldActivate);
+  });
+}
+
+function applyScenario(key, button) {
+  const preset = scenarioPresets[key];
+  if (!preset || !injuryField) return;
+
+  injuryField.value = preset.injury;
+  state.liveVitals = { ...preset.vitals };
+  renderLiveVitals();
+  setActiveControl(scenarioButtons, button);
+}
+
+function appendTriageChip(chip) {
+  if (!injuryField) return;
+
+  const note = chip.dataset.chip?.trim();
+  if (!note) return;
+
+  const normalizedValue = injuryField.value.trim().toLowerCase();
+  if (!normalizedValue.includes(note.toLowerCase())) {
+    const separator = normalizedValue ? (/[.!?]$/.test(injuryField.value.trim()) ? " " : "; ") : "";
+    injuryField.value = `${injuryField.value.trim()}${separator}${note}`.trim();
+  }
+
+  chip.classList.add("active");
+  window.setTimeout(() => chip.classList.remove("active"), 900);
 }
 
 async function checkHealth() {
   try {
     const response = await fetch("/api/health");
     const data = await response.json();
+
     healthState.voiceReady = data.voice_ready === "true";
     healthState.voiceDefaultConfigured = data.voice_default_recipient_configured === "true";
-    healthState.voiceDefaultMasked = data.voice_default_recipient_masked || "";
 
     apiStatus.textContent = `${data.status.toUpperCase()} / ${data.database_mode} / ${data.voice_provider}`;
 
     if (!healthState.voiceReady) {
-      voiceHelp.textContent = "Voice call setup is incomplete on the server. Check Bolna API key and agent ID.";
       callButton.disabled = true;
       return;
     }
-
-    if (healthState.voiceDefaultConfigured) {
-      voiceHelp.textContent = `Leave the field empty to use the configured default number ${healthState.voiceDefaultMasked}.`;
-    } else {
-      voiceHelp.textContent = "Enter a verified E.164 number to place a voice call.";
-    }
+    callButton.disabled = !healthState.voiceDefaultConfigured;
   } catch (error) {
     apiStatus.textContent = "Offline";
-    voiceHelp.textContent = "API is offline, so voice calling is unavailable.";
     callButton.disabled = true;
   }
 }
@@ -81,8 +332,11 @@ function initLocation() {
 }
 
 function initMap() {
+  const mapElement = document.getElementById("map");
+  if (!mapElement) return;
+
   if (!window.L) {
-    document.getElementById("map").innerHTML = "<p>Leaflet could not load.</p>";
+    mapElement.innerHTML = "<p>Leaflet could not load.</p>";
     return;
   }
 
@@ -123,7 +377,7 @@ function updateMap(selectedHospital = null) {
     state.routeLine = L.Routing.control({
       waypoints: [
         L.latLng(state.patientLat, state.patientLon),
-        L.latLng(selectedHospital.lat, selectedHospital.lon)
+        L.latLng(selectedHospital.lat, selectedHospital.lon),
       ],
       routeWhileDragging: false,
       addWaypoints: false,
@@ -131,11 +385,11 @@ function updateMap(selectedHospital = null) {
       fitSelectedRoutes: true,
       show: false,
       lineOptions: {
-        styles: [{ color: "#f97316", opacity: 0.9, weight: 5 }]
+        styles: [{ color: "#f97316", opacity: 0.9, weight: 5 }],
       },
-      createMarker: function(i, wp) {
+      createMarker: function (i, wp) {
         return L.marker(wp.latLng);
-      }
+      },
     }).addTo(state.map);
 
     return;
@@ -144,30 +398,48 @@ function updateMap(selectedHospital = null) {
   state.map.setView([state.patientLat, state.patientLon], 12);
 }
 
-function renderReasoning(lines) {
-  reasoningList.innerHTML = "";
-  (lines || []).forEach((line) => {
-    const item = document.createElement("li");
-    item.textContent = line;
-    reasoningList.appendChild(item);
-  });
-}
-
-// ⭐ UPDATED FUNCTION (TOP 5 HOSPITALS)
 function renderHospitals(hospitals) {
   hospitalList.innerHTML = "";
 
-  (hospitals || []).slice(0, 5).forEach((hospital, index) => {
+  const alternateHospitals = (hospitals || []).slice(1, 5);
+
+  alternateHospitals.forEach((hospital, index) => {
     const card = document.createElement("article");
+    const progress = scorePercent(hospital.score);
+    const tone = scoreColor(hospital.score || 0);
+    const departmentText = titleize((hospital.departments || []).join(", "));
+    const icuText = hospital.icu_available ? "ICU available" : "No ICU";
+    const bedText = `${hospital.available_beds} beds open`;
+    const rank = index + 2;
+
     card.className = "candidate-card";
     card.innerHTML = `
       <div class="candidate-top">
-        <strong>#${index + 1} ${hospital.name}</strong>
-        <span>${hospital.eta_minutes} min</span>
+        <div class="candidate-title">
+          <strong>${hospital.name}</strong>
+          <p class="candidate-subtitle">${hospital.eta_minutes} min ETA</p>
+        </div>
+        <span class="badge">${rank}</span>
       </div>
-      <p>${titleize(hospital.departments.join(", "))}</p>
-      <p>Score ${hospital.score.toFixed(3)} | Beds ${hospital.available_beds} | ICU ${hospital.icu_available ? "Yes" : "No"}</p>
-      <p>${hospital.routing_reason}</p>
+      <div class="candidate-metrics">
+        <div class="metric-row">
+          <span class="metric-chip">${departmentText || "General access"}</span>
+          <span class="metric-chip">${bedText}</span>
+          <span class="metric-chip">${icuText}</span>
+        </div>
+        <span class="${metricTone(hospital.score || 0, "score")}">${hospital.score.toFixed(3)}</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-meta">
+          <span>Match Confidence</span>
+          <span>${progress}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%; background: linear-gradient(90deg, ${tone}66, ${tone});"></div>
+        </div>
+      </div>
+      <p class="candidate-departments">${departmentText}</p>
+      <p class="candidate-reason">${hospital.routing_reason}</p>
     `;
     hospitalList.appendChild(card);
   });
@@ -176,63 +448,66 @@ function renderHospitals(hospitals) {
 function updateSummary(data) {
   const triage = data.triage;
   const hospital = data.selected_hospital;
-  const voiceCall = data.voice_call;
+  const severity = triage.severity;
+  const hospitalScore = hospital?.score;
+  const hospitalBeds = hospital?.available_beds ?? null;
 
-  severityChip.textContent = triage.severity.toUpperCase();
-  severityChip.className = `chip severity-${triage.severity}`;
-  departmentValue.textContent = titleize(triage.department);
+  severityChip.innerHTML = severityBadgeMarkup(severity);
+  severityChip.className = severityBadgeClass(severity);
+  severityHeadline.textContent = severityLabel(severity);
+  departmentValue.textContent = titleize(triage.department || "-");
+  departmentValue.className = "";
   hospitalValue.textContent = hospital ? hospital.name : "No match";
   etaValue.textContent = hospital ? `${hospital.eta_minutes} min` : "-";
-  smsValue.textContent = data.sms.status.toUpperCase();
-  voiceValue.textContent = voiceCall ? voiceCall.status.toUpperCase() : "NOT RUN";
+  etaValue.className = hospital ? metricTone(hospital.eta_minutes, "eta") : "";
+  smsValue.textContent = hospitalBeds != null ? `${hospitalBeds}` : "-";
+  smsValue.className = hospitalBeds != null ? metricTone(hospitalBeds, "beds") : "";
+  scoreValue.textContent = hospitalScore != null ? hospitalScore.toFixed(3) : "-";
+  scoreValue.className = hospitalScore != null ? metricTone(hospitalScore, "score") : "";
   triageSource.textContent = `Triage via ${triage.source}`;
+  dispatchRecommendation.innerHTML = `
+    <span class="status-key">Status</span>
+    <strong>${hospital ? "Destination locked" : "No match"}</strong>
+  `;
+  dispatchCard.classList.toggle("selected", Boolean(hospital));
+  document.getElementById("recommendedBadge").outerHTML = hospital
+    ? '<span class="badge badge-recommended" id="recommendedBadge">Recommended</span>'
+    : '<span class="badge" id="recommendedBadge">Pending</span>';
+  reasoningBadge.innerHTML = badgeForSeverity(severity);
 
   renderReasoning([
     ...triage.explanation,
     ...data.routing_reasoning,
-    data.sms.error ? `SMS note: ${data.sms.error}` : `SMS body prepared`,
-    voiceCall
-      ? (
-        voiceCall.error
-          ? `Voice call note: ${voiceCall.error}`
-          : `Voice call ${voiceCall.status} via ${voiceCall.provider}${voiceCall.execution_id ? ` (${voiceCall.execution_id})` : ""}`
-      )
-      : "Voice call not triggered",
   ]);
 
   renderHospitals(data.candidate_hospitals);
   updateMap(hospital);
+  syncTopCardHeights();
 }
 
 function buildPayload(includeVoiceNumber = false) {
   const payload = {
-    heart_rate: Number(document.getElementById("heartRate").value),
-    systolic_bp: Number(document.getElementById("systolicBp").value),
-    diastolic_bp: Number(document.getElementById("diastolicBp").value),
-    oxygen_saturation: Number(document.getElementById("oxygen").value),
-    injury: document.getElementById("injury").value.trim(),
+    heart_rate: state.liveVitals.heart_rate,
+    systolic_bp: state.liveVitals.systolic_bp,
+    diastolic_bp: state.liveVitals.diastolic_bp,
+    oxygen_saturation: state.liveVitals.oxygen_saturation,
+    injury: injuryField.value.trim(),
     patient_lat: state.patientLat,
     patient_lon: state.patientLon,
   };
 
   if (includeVoiceNumber) {
-    const voiceNumber = document.getElementById("voiceNumber").value.trim();
-    if (voiceNumber) {
-      payload.recipient_phone_number = voiceNumber;
-    }
+    return payload;
   }
 
   return payload;
 }
 
 async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNumber = false) {
-  if (
-    endpoint === "/api/voice/test-call" &&
-    !voiceNumberInput.value.trim() &&
-    !healthState.voiceDefaultConfigured
-  ) {
-    renderReasoning(["Voice call not started: no recipient number was entered and no default test number is configured."]);
-    voiceValue.textContent = "SKIPPED";
+  if (endpoint === "/api/voice/test-call" && !healthState.voiceDefaultConfigured) {
+    renderReasoning([
+      "Voice call not started: no default recipient number is configured on the server.",
+    ]);
     return;
   }
 
@@ -267,7 +542,7 @@ async function runWorkflow(endpoint, button, busyText, idleText, includeVoiceNum
     }
   } finally {
     submitButton.disabled = false;
-    callButton.disabled = false;
+    callButton.disabled = !healthState.voiceReady || !healthState.voiceDefaultConfigured;
     submitButton.textContent = "Run Triage";
     callButton.textContent = "Run Triage + Voice Call";
     button.textContent = idleText;
@@ -289,6 +564,20 @@ callButton.addEventListener("click", async () => {
   );
 });
 
+scenarioButtons.forEach((button) => {
+  button.addEventListener("click", () => applyScenario(button.dataset.scenario, button));
+});
+
+triageChips.forEach((chip) => {
+  chip.addEventListener("click", () => appendTriageChip(chip));
+});
+
+formatClock();
+renderLiveVitals();
+setInterval(tickLiveVitals, 1400);
+setInterval(formatClock, 1000);
 checkHealth();
 initLocation();
 initMap();
+syncTopCardHeights();
+window.addEventListener("resize", syncTopCardHeights);
